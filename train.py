@@ -9,7 +9,7 @@ from loss_functions import bce_dice_loss, dice_coefficient
 
 BASE_FILTERS = 32
 INPUT_SHAPE = (308, 384, 1)
-BATCH_SIZE = 12
+BATCH_SIZE = 8
 EPOCHS = 50
 VALIDATION_SPLIT = 0.1
 RANDOM_SEED = 42
@@ -22,6 +22,7 @@ t2_vols, cap_vols = t2_vols.transpose(0, 3, 2, 1), cap_vols.transpose(0, 3, 2, 1
 X, y = isolate_and_normalize(t2_vols, cap_vols)
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=RANDOM_SEED)
+
 
 # Data augmentation function
 def augment(image, mask):
@@ -71,7 +72,7 @@ callbacks = [
         restore_best_weights=True
     ),
     tf.keras.callbacks.ReduceLROnPlateau(
-        monitor='val_loss',     # or 'val_dice_coefficient' if you prefer
+        monitor='val_loss',  # or 'val_dice_coefficient' if you prefer
         factor=0.5,
         patience=3,
         verbose=1
