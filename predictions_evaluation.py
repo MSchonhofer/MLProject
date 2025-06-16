@@ -46,6 +46,17 @@ print(f"F1 Score:       {f1:.4f}")
 print("\nConfusion Matrix:")
 print(cm)
 
+# Plot Histogram of Predicted Probabilities inside Prostate
+plt.figure(figsize=(8, 5))
+plt.hist(y_pred.flatten(), bins=50, color='steelblue', edgecolor='black')
+plt.title("Histogram of Predicted Cancer Probabilities (within prostate)")
+plt.xlabel("Predicted Probability")
+plt.ylabel("Number of Voxels")
+plt.grid(True)
+plt.tight_layout()
+plt.savefig(os.path.join(TEST_DIR, 'probability_histogram.png'))
+plt.show()
+
 # Plot ROC Curve
 fpr, tpr, _ = roc_curve(y_true.flatten(), y_pred.flatten())
 plt.figure(figsize=(6, 5))
