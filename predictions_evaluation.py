@@ -1,5 +1,3 @@
-# evaluate_predictions.py
-
 import numpy as np
 import nibabel as nib
 import os
