@@ -12,12 +12,12 @@ from loss_functions import combo_loss, dice_coefficient
 
 BASE_FILTERS = 32
 INPUT_SHAPE = (308, 384, 1)
-BATCH_SIZE = 4
+BATCH_SIZE = 8
 EPOCHS = 30
 VALIDATION_SPLIT = 0.1
 RANDOM_SEED = 42
 
-log_dir = f"./LogDir/finalN{BASE_FILTERS}-" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+log_dir = f"./logs/finalN{BASE_FILTERS}-" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
 t2_vols, cap_vols = load_data()
 t2_vols, cap_vols = t2_vols.transpose(0, 3, 2, 1), cap_vols.transpose(0, 3, 2, 1)
@@ -32,14 +32,21 @@ val_ds = val_ds.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
 
 model = build_unet_model(base_filters=BASE_FILTERS, input_shape=INPUT_SHAPE)
 model.compile(
-    optimizer=tf.keras.optimizers.Adam(1e-4),
+    optimizer=tf.keras.optimizers.Adam(1e-5),
     loss=combo_loss,
     metrics=[dice_coefficient, 'accuracy']
 )
 
 callbacks = [
-    tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1),
-    tf.keras.callbacks.EarlyStopping(patience=5, restore_best_weights=True)
+    tf.keras.callbacks.TensorBoard(
+        log_dir=log_dir,
+        histogram_freq=1),
+    tf.keras.callbacks.EarlyStopping(
+        monitor='val_dice_coefficient',
+        mode='max',
+        patience=15,
+        restore_best_weights=True
+    )
 ]
 
 model.fit(
