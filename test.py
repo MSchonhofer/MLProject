@@ -5,7 +5,8 @@ from sklearn.model_selection import train_test_split
 
 from data_utils import load_data, isolate_and_normalize
 from unet_model import build_unet_model
-from loss_functions import bce_dice_loss  # NEW import
+from loss_functions import bce_dice_loss
+from visualize import compare_predictions
 
 # Constants
 BASE_FILTERS = 32
@@ -38,30 +39,5 @@ dice = (2. * intersection) / (np.sum(binary_preds) + np.sum(y_test) + 1e-6)
 print(f"IoU: {iou:.4f}")
 print(f"Dice Coefficient: {dice:.4f}")
 
-# Visualize predictions, ground truth, and heatmaps
-plt.figure(figsize=(12, 12))
-for idx in range(6):
-    plt.subplot(4, 6, idx + 1)
-    plt.imshow(X_test[idx].squeeze(), cmap='gray')
-    plt.title("Input")
-    plt.axis('off')
-
-    plt.subplot(4, 6, idx + 7)
-    plt.imshow(X_test[idx].squeeze(), cmap='gray')
-    plt.imshow(binary_preds[idx].squeeze(), alpha=0.5, cmap='Reds')
-    plt.title("Prediction")
-    plt.axis('off')
-
-    plt.subplot(4, 6, idx + 13)
-    plt.imshow(y_test[idx].squeeze(), cmap='gray')
-    plt.title("Ground Truth")
-    plt.axis('off')
-
-    plt.subplot(4, 6, idx + 19)
-    plt.imshow(y_pred[idx].squeeze(), cmap='hot')
-    plt.title("Raw Prob Map")
-    plt.axis('off')
-
-plt.tight_layout()
-plt.show()
+compare_predictions(X_test, y_test, y_pred, threshold=THRESHOLD)
 

@@ -9,8 +9,8 @@ from loss_functions import bce_dice_loss, dice_coefficient
 
 BASE_FILTERS = 32
 INPUT_SHAPE = (308, 384, 1)
-BATCH_SIZE = 8
-EPOCHS = 30
+BATCH_SIZE = 12
+EPOCHS = 50
 VALIDATION_SPLIT = 0.1
 RANDOM_SEED = 42
 
@@ -69,6 +69,12 @@ callbacks = [
         mode='max',
         patience=10,
         restore_best_weights=True
+    ),
+    tf.keras.callbacks.ReduceLROnPlateau(
+        monitor='val_loss',     # or 'val_dice_coefficient' if you prefer
+        factor=0.5,
+        patience=3,
+        verbose=1
     )
 ]
 
