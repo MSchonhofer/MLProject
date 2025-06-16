@@ -23,6 +23,10 @@ X, y = isolate_and_normalize(t2_vols, cap_vols)
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=RANDOM_SEED)
 
+print("Total positive voxels in y_train:", np.sum(y_train))
+print("Total positive voxels in y_test:", np.sum(y_test))
+print("Total voxels in y_train:", np.prod(y_train.shape))
+print("Percentage of positive voxels in y_train:", 100 * np.sum(y_train) / np.prod(y_train.shape))
 
 # Data augmentation function
 def augment(image, mask):
@@ -72,9 +76,10 @@ callbacks = [
         restore_best_weights=True
     ),
     tf.keras.callbacks.ReduceLROnPlateau(
-        monitor='val_loss',  # or 'val_dice_coefficient' if you prefer
+        monitor='val_loss',
+        mode='min',         # or 'val_dice_coefficient' if you prefer
         factor=0.5,
-        patience=3,
+        patience=5,
         verbose=1
     )
 ]
