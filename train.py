@@ -1,97 +1,50 @@
-import tensorflow as tf
-from sklearn.model_selection import train_test_split
 import numpy as np
-import datetime
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.callbacks import EarlyStopping
+import joblib
+import os
 
-from data_utils import load_data, isolate_and_normalize
-from unet_model import build_unet_model
-from loss_functions import bce_dice_loss, dice_coefficient
+# Load data
+print("[INFO] Loading training data...")
+X = np.load('data/x_data_corrected.npy')    # shape: (num_voxels, 44)
+y = np.load('data/y_labels.npy')            # shape: (num_voxels, )
 
-BASE_FILTERS = 32
-INPUT_SHAPE = (308, 384, 1)
-BATCH_SIZE = 8
-EPOCHS = 50
-VALIDATION_SPLIT = 0.1
-RANDOM_SEED = 42
+# Normalize features
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
 
-log_dir = f"./logs/finalN{BASE_FILTERS}-" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+# Split into train/val
+X_train, X_val, y_train, y_val = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
-# Load and preprocess data
-t2_vols, cap_vols = load_data()
-t2_vols, cap_vols = t2_vols.transpose(0, 3, 2, 1), cap_vols.transpose(0, 3, 2, 1)
-X, y = isolate_and_normalize(t2_vols, cap_vols)
+# Simple MLP
+model = Sequential([
+    Dense(64, activation='relu', input_shape=(X.shape[1],)),
+    Dropout(0.3),
+    Dense(32, activation='relu'),
+    Dropout(0.2),
+    Dense(1, activation='sigmoid')  # binary classification
+])
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=RANDOM_SEED)
-
-print("Total positive voxels in y_train:", np.sum(y_train))
-print("Total positive voxels in y_test:", np.sum(y_test))
-print("Total voxels in y_train:", np.prod(y_train.shape))
-print("Percentage of positive voxels in y_train:", 100 * np.sum(y_train) / np.prod(y_train.shape))
-
-# Data augmentation function
-def augment(image, mask):
-    if tf.random.uniform(()) > 0.5:
-        image = tf.image.flip_left_right(image)
-        mask = tf.image.flip_left_right(mask)
-    if tf.random.uniform(()) > 0.5:
-        image = tf.image.flip_up_down(image)
-        mask = tf.image.flip_up_down(mask)
-    if tf.random.uniform(()) > 0.5:
-        k = tf.random.uniform((), minval=0, maxval=4, dtype=tf.int32)
-        image = tf.image.rot90(image, k=k)
-        mask = tf.image.rot90(mask, k=k)
-
-    # Enforce fixed output size (this fixes your error)
-    image = tf.image.resize(image, [308, 384])
-    mask = tf.image.resize(mask, [308, 384])
-
-    image.set_shape([308, 384, 1])
-    mask.set_shape([308, 384, 1])
-    return image, mask
-
-
-# Dataset pipelines
-train_ds = tf.data.Dataset.from_tensor_slices((X_train, y_train))
-train_ds = train_ds.map(augment, num_parallel_calls=tf.data.AUTOTUNE)
-train_ds = train_ds.shuffle(1000).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
-
-val_ds = tf.data.Dataset.from_tensor_slices((X_test, y_test))
-val_ds = val_ds.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
-
-# Build model
-model = build_unet_model(base_filters=BASE_FILTERS, input_shape=INPUT_SHAPE)
-model.compile(
-    optimizer=tf.keras.optimizers.Adam(1e-4),
-    loss=bce_dice_loss,
-    metrics=[dice_coefficient, 'accuracy']
-)
-
-# Callbacks
-callbacks = [
-    tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1),
-    tf.keras.callbacks.EarlyStopping(
-        monitor='val_dice_coefficient',
-        mode='max',
-        patience=10,
-        restore_best_weights=True
-    ),
-    tf.keras.callbacks.ReduceLROnPlateau(
-        monitor='val_loss',
-        mode='min',         # or 'val_dice_coefficient' if you prefer
-        factor=0.5,
-        patience=5,
-        verbose=1
-    )
-]
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
 # Train
+print("[INFO] Training model...")
 model.fit(
-    train_ds,
-    validation_data=val_ds,
-    epochs=EPOCHS,
-    callbacks=callbacks,
-    verbose=1
+    X_train, y_train,
+    validation_data=(X_val, y_val),
+    epochs=30,
+    batch_size=256,
+    callbacks=[EarlyStopping(patience=5, restore_best_weights=True)]
 )
 
-# Save weights
-model.save_weights(f"./models/seg_model_N{BASE_FILTERS}.weights.h5")
+# Save model and scaler
+os.makedirs('models', exist_ok=True)
+model.save('models/voxel_model.h5')
+joblib.dump(scaler, 'models/scaler.pkl')
+
+print("[INFO] Training complete. Model saved to models/voxel_model.h5")
+
+

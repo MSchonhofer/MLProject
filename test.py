@@ -1,53 +1,32 @@
 import numpy as np
-import tensorflow as tf
-import matplotlib.pyplot as plt
+import joblib
+from tensorflow.keras.models import load_model
 
-from data_utils import load_test_patient
-from unet_model import build_unet_model
-from loss_functions import dice_coefficient
-from visualize import compare_predictions
+# Paths
+X_TEST_PATH = 'data/test_patient/x_test.npy'
+MODEL_PATH = 'models/voxel_model.h5'
+SCALER_PATH = 'models/scaler.pkl'
+OUTPUT_PATH = 'data/test_patient/probability_map.npy'
 
-BASE_FILTERS = 32
-INPUT_SHAPE = (308, 384, 1)
-MODEL_PATH = f"./models/seg_model_N{BASE_FILTERS}.weights.h5"
+#Load x_test features
+print("[INFO] Loading test patient features...")
+X_test = np.load(X_TEST_PATH)  # shape: (num_voxels, 44)
 
-# Load model
-model = build_unet_model(base_filters=BASE_FILTERS, input_shape=INPUT_SHAPE)
-model.load_weights(MODEL_PATH)
+# Load model and scaler
+print("[INFO] Loading model and scaler...")
+model = load_model(MODEL_PATH)
+scaler = joblib.load(SCALER_PATH)
 
-# Load test patient data
-X_test, y_test = load_test_patient('./training_data/test_patient')
-print("Test patient shape:", X_test.shape)
+# Normalize features
+X_scaled = scaler.transform(X_test)
 
-# Predict
-y_pred = model.predict(X_test, batch_size=4)
+# Predict cancer probability for each voxel
+print("[INFO] Predicting cancer probabilities...")
+predictions = model.predict(X_scaled).flatten()  # shape: (num_voxels,)
 
-# Evaluate
-threshold = 0.2
-binary_preds = (y_pred > threshold).astype(np.uint8)
-intersection = np.sum(binary_preds * y_test)
-union = np.sum(binary_preds) + np.sum(y_test)
-iou = intersection / (union - intersection + 1e-6)
-dice = dice_coefficient(y_test, y_pred)
+# Save output
+np.save(OUTPUT_PATH, predictions)
+print(f"[INFO] Saved voxel-level probability map to {OUTPUT_PATH}")
 
-print(f"IoU: {iou:.4f}")
-print(f"Dice Coefficient: {dice:.4f}")
-
-compare_predictions(X_test, y_test, y_pred, threshold=threshold)
-
-import matplotlib.pyplot as plt
-
-# Flatten all predicted voxel probabilities
-all_preds = y_pred.flatten()
-
-# Plot histogram of probabilities
-plt.figure(figsize=(8, 4))
-plt.hist(all_preds, bins=50, color='skyblue', edgecolor='black')
-plt.title("Histogram of Predicted Voxel Probabilities")
-plt.xlabel("Predicted Probability")
-plt.ylabel("Voxel Count")
-plt.grid(True)
-plt.tight_layout()
-plt.show()
 
 

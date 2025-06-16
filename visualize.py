@@ -1,42 +1,43 @@
-import matplotlib.pyplot as plt
 import numpy as np
+import nibabel as nib
+import matplotlib.pyplot as plt
+import os
 
-def show_overlay(image, mask=None, threshold=0.5, alpha=0.4, ax=None, title=None):
-    if image.ndim == 3 and image.shape[-1] == 1:
-        image = image.squeeze()
-    if mask is not None and mask.ndim == 3:
-        mask = mask.squeeze()
+TEST_DIR = 'data/test_patient/'
+t2_path = [f for f in os.listdir(TEST_DIR) if 't2' in f][0]
+mask_path = [f for f in os.listdir(TEST_DIR) if 'prostate_mask' in f][0]
 
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(6, 6))
-        own_fig = True
-    else:
-        own_fig = False
+# Load data
+t2_img = nib.load(os.path.join(TEST_DIR, t2_path)).get_fdata()
+mask = nib.load(os.path.join(TEST_DIR, mask_path)).get_fdata() > 0
+prob_flat = np.load(os.path.join(TEST_DIR, 'probability_map.npy'))
+indices = np.load(os.path.join(TEST_DIR, 'mask_indices.npy'))
 
-    ax.imshow(image, cmap='gray')
-    ax.axis('off')
+# Reconstruct 3D probability map
+prob_map = np.zeros(t2_img.shape)
+for i, (x, y, z) in enumerate(indices):
+    prob_map[x, y, z] = prob_flat[i]
 
-    if mask is not None:
-        binary_mask = (mask > threshold).astype(np.uint8)
-        overlay = np.zeros((*binary_mask.shape, 4))
-        overlay[binary_mask == 1] = [1, 0, 0, alpha]  # red with alpha
-        ax.imshow(overlay)
+# Output directory for overlays
+OUTPUT_DIR = os.path.join(TEST_DIR, 'slices')
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    if title:
-        ax.set_title(title)
-    if own_fig:
-        plt.show()
+# Loop through slices that contain prostate
+z_slices = np.unique(indices[:, 2])
+print(f"[INFO] Generating overlays for {len(z_slices)} slices...")
 
-def compare_predictions(images, ground_truths, predictions, indices=None, threshold=0.5):
-    if indices is None:
-        indices = list(range(min(6, len(images))))
+for slice_idx in z_slices:
+    slice_idx = int(slice_idx)
 
-    fig, axs = plt.subplots(3, len(indices), figsize=(4 * len(indices), 9))
+    plt.figure(figsize=(10, 6))
+    plt.imshow(t2_img[:, :, slice_idx], cmap='gray')
+    plt.imshow(prob_map[:, :, slice_idx], cmap='hot', alpha=0.5)
+    plt.title(f"Predicted Cancer Probability Map (slice {slice_idx})")
+    plt.axis('off')
+    plt.colorbar(label='Probability')
 
-    for idx, i in enumerate(indices):
-        show_overlay(images[i], ax=axs[0, idx], title=f"Input {i}")
-        show_overlay(images[i], ground_truths[i], ax=axs[1, idx], title="Ground Truth")
-        show_overlay(images[i], predictions[i], threshold=threshold, ax=axs[2, idx], title="Prediction")
+    save_path = os.path.join(OUTPUT_DIR, f"slice_{slice_idx:03}.png")
+    plt.savefig(save_path, bbox_inches='tight', pad_inches=0.1)
+    plt.close()
 
-    plt.tight_layout()
-    plt.show()
+print(f"[INFO] Overlays saved to: {OUTPUT_DIR}")
