@@ -25,7 +25,7 @@ y_true = cap_mask[prostate_mask]     # binary labels in prostate
 y_pred = pred_full[prostate_mask]    # model predictions in prostate
 
 # Threshold predictions for binary evaluation
-threshold = 0.5
+threshold = 0.75
 y_pred_binary = (y_pred >= threshold).astype(int)
 
 # Metrics
@@ -46,7 +46,7 @@ print(f"F1 Score:       {f1:.4f}")
 print("\nConfusion Matrix:")
 print(cm)
 
-# Plot Histogram of Predicted Probabilities inside Prostate
+# Plot histogram
 plt.figure(figsize=(8, 5))
 plt.hist(y_pred.flatten(), bins=50, color='steelblue', edgecolor='black')
 plt.title("Histogram of Predicted Cancer Probabilities (within prostate)")
@@ -70,3 +70,46 @@ plt.grid()
 plt.tight_layout()
 plt.savefig(os.path.join(TEST_DIR, 'roc_curve.png'))
 plt.show()
+
+# Function for finding best threshold
+def compute_metrics(y_true, y_pred_binary):
+    tp = np.sum((y_true == 1) & (y_pred_binary == 1))
+    fp = np.sum((y_true == 0) & (y_pred_binary == 1))
+    fn = np.sum((y_true == 1) & (y_pred_binary == 0))
+
+    precision = tp / (tp + fp + 1e-8)
+    recall = tp / (tp + fn + 1e-8)
+    dice = 2 * tp / (2 * tp + fp + fn + 1e-8)
+    f1 = 2 * (precision * recall) / (precision + recall + 1e-8)
+
+    return dice, precision, recall, f1
+
+# Sweep thresholds
+thresholds = np.arange(0.1, 0.91, 0.05)
+dice_list = []
+prec_list = []
+rec_list = []
+f1_list = []
+
+for t in thresholds:
+    y_bin = (y_pred >= t).astype(int)
+    d, p, r, f1 = compute_metrics(y_true, y_bin)
+    dice_list.append(d)
+    prec_list.append(p)
+    rec_list.append(r)
+    f1_list.append(f1)
+
+plt.figure(figsize=(10, 6))
+plt.plot(thresholds, dice_list, label='Dice Score', marker='o')
+plt.plot(thresholds, f1_list, label='F1 Score', marker='s')
+plt.plot(thresholds, prec_list, label='Precision', linestyle='--')
+plt.plot(thresholds, rec_list, label='Recall', linestyle='--')
+plt.xlabel("Threshold")
+plt.ylabel("Metric Score")
+plt.title("Threshold Sweep: Dice, F1, Precision, Recall")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.savefig(os.path.join(TEST_DIR, 'threshold_sweep_metrics.png'))
+plt.show()
+
